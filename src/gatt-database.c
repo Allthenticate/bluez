@@ -3497,6 +3497,13 @@ fail:
 	return NULL;
 }
 
+static DBusMessage *ping(DBusConnection *conn,
+                    DBusMessage *msg, void *user_data) {
+    DBG("PONG!!!!!!");
+
+    return NULL;
+}
+
 static DBusMessage *manager_register_app(DBusConnection *conn,
 					DBusMessage *msg, void *user_data)
 {
@@ -3575,7 +3582,11 @@ static const GDBusMethodTable manager_methods[] = {
 	{ GDBUS_ASYNC_METHOD("UnregisterApplication",
 					GDBUS_ARGS({ "application", "o" }),
 					NULL, manager_unregister_app) },
-	{ }
+	{
+	  GDBUS_ASYNC_METHOD("Ping",
+                    GDBUS_ARGS({ "application", "o" }),
+                    NULL, ping) },
+	}
 };
 
 static uint8_t server_authorize(struct bt_att *att, uint8_t opcode,
