@@ -3536,7 +3536,9 @@ static DBusMessage *manager_register_app(DBusConnection *conn,
 	if (!app)
 		return btd_error_failed(msg, "Failed to register application");
 
-	DBG("Registering application: %s:%s", sender, path);
+	DBG("HERE Registering application: %s:%s", sender, path);
+
+    DBG("REGISTERED!!!!!!");
 
 	app->database = database;
 	queue_push_tail(database->apps, app);
@@ -3586,7 +3588,7 @@ static const GDBusMethodTable manager_methods[] = {
 	  GDBUS_ASYNC_METHOD("Ping",
                     GDBUS_ARGS({ "application", "o" }),
                     NULL, ping) },
-	}
+    { }
 };
 
 static uint8_t server_authorize(struct bt_att *att, uint8_t opcode,
