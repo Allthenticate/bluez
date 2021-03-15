@@ -1,6 +1,7 @@
 #!/usr/bin/env sh
 
 # TODO requirements
+sudo apt-get install -y libusb-dev libdbus-1-dev libglib2.0-dev libudev-dev libical-dev libreadline-dev
 
 # Remove old bluez
 sudo make clean
@@ -8,8 +9,8 @@ sudo systemctl stop bluetooth
 sudo make uninstall
 
 # Configure and make
-./configure --prefix=/usr --mandir=/usr/share/man --sysconfdir=/etc --localstatedir=/var --enable-library --enable-experimental --enable-deprecated --enable-maintainer-mode --with-dbusconfdir=/usr/share 2>errors.txt
-make -j 4
+./configure
+sudo make -j 4
 
 #sudo ./src/bluetoothd -n -P battery -d --experimental -f ./src/main.conf
 sudo make install
