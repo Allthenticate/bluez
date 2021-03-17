@@ -2723,6 +2723,115 @@ static void property_changed_cb(GDBusProxy *proxy, const char *name,
 				proxy);
 }
 
+static DBusMessage *notify_device_on_chrc_change(DBusConnection *conn,
+                                         DBusMessage *msg, void *user_data) {
+
+    DBG("Notify device on characteristic change called!");
+
+    DBusMessageIter args;
+    struct btd_gatt_database *database = user_data;
+    const char *characteristic_path;
+    const char *client_path;
+    uint8_t *value = NULL;
+    int value_len = 0;
+
+    DBG("Validating and parsing arguments...");
+
+    // Validate that we can parse the args
+    if (!dbus_message_iter_init(msg, &args)) {
+        DBG("Invalid arguments!");
+        return btd_error_invalid_args(msg);
+    }
+
+    // Parse out the args
+    DBG("Parsing out the client path..");
+
+    // Fetch the client path
+    dbus_message_iter_get_basic(&args, &client_path);
+    DBG("Got a message to update central: %s", client_path);
+
+    // Get the characteristic path
+    dbus_message_iter_next(&args);
+    dbus_message_iter_get_basic(&args, &characteristic_path);
+    DBG("Got a message to update characteristic: %s", characteristic_path);
+
+    dbus_message_iter_next(&args);
+    if (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_ARRAY) {
+        DBG("Value argument is not an array!");
+        return btd_error_invalid_args(msg);
+    }
+
+    DBusMessageIter array;
+    dbus_message_iter_recurse(&args, &array);
+    DBG("Recursed!!");
+    dbus_message_iter_get_fixed_array(&array, &value, &value_len);
+    DBG("Value len is getting updated with %u", value_len);
+
+//    for (int i = 0; i < value_len; i++) {
+//        DBG("Value: %i = %u", i, value[i]);
+//    }
+
+    return NULL;
+//    struct device_state *device_state;
+//    // GET the above guy with find_device_state from the database w/ btaddr
+//    struct notify notify;
+//    memset(&notify, 0, sizeof(notify));
+//
+//    const char *chrc_path;
+//
+//    // First we need to find the characteristic we are trying to update
+//    if (!parse_path(conn, "Characteristic", &chrc_path)) {
+//        error("Failed to obtain characteristic path");
+//        return;
+//    }
+//
+//    DBG("Found characteristic path: %s", chrc_path);
+
+//    notify.database = database;
+//    notify.handle = handle;
+//    notify.ccc_handle = ccc_handle;
+//    notify.value = value;
+//    notify.len = len;
+//    notify.conf = conf;
+//    notify.user_data = user_data;
+
+//    send_notification_to_device(void *data, void *notify);
+
+//    struct external_chrc *chrc = user_data;
+//    DBusMessageIter array;
+//    uint8_t *value = NULL;
+//    int len = 0;
+//
+//    if (dbus_message_iter_get_arg_type(iter) != DBUS_TYPE_ARRAY) {
+//        DBG("Malformed \"Value\" property received");
+//        return;
+//    }
+//
+//    dbus_message_iter_recurse(iter, &array);
+//    dbus_message_iter_get_fixed_array(&array, &value, &len);
+//
+//    if (len < 0) {
+//        DBG("Malformed \"Value\" property received");
+//        return;
+//    }
+//
+//    /* Truncate the value if it's too large */
+//    len = MIN(BT_ATT_MAX_VALUE_LEN, len);
+//    value = len ? value : NULL;
+//
+//
+//    // TODO Bernie
+//    DBG("Bernie's method invoked with chrc attrb %u", gatt_db_attribute_get_handle(chrc->attrib));
+//    DBG("Bernie's method invoked with chrc value %u", value);
+//
+//    send_notification_to_devices(chrc->service->app->database,
+//                                 gatt_db_attribute_get_handle(chrc->attrib),
+//                                 value, len,
+//                                 gatt_db_attribute_get_handle(chrc->ccc),
+//                                 conf_cb,
+//                                 proxy);
+}
+
 static bool database_add_ccc(struct external_service *service,
 						struct external_chrc *chrc)
 {
@@ -3499,7 +3608,7 @@ fail:
 
 static DBusMessage *ping(DBusConnection *conn,
                     DBusMessage *msg, void *user_data) {
-    DBG("PONG!!!!!!");
+    DBG("Pong");
 
     return NULL;
 }
@@ -3537,8 +3646,6 @@ static DBusMessage *manager_register_app(DBusConnection *conn,
 		return btd_error_failed(msg, "Failed to register application");
 
 	DBG("HERE Registering application: %s:%s", sender, path);
-
-    DBG("REGISTERED!!!!!!");
 
 	app->database = database;
 	queue_push_tail(database->apps, app);
@@ -3588,6 +3695,11 @@ static const GDBusMethodTable manager_methods[] = {
 	  GDBUS_ASYNC_METHOD("Ping",
                     GDBUS_ARGS({ "application", "o" }),
                     NULL, ping) },
+    {  GDBUS_ASYNC_METHOD("SendNotificationToDevice",
+                   GDBUS_ARGS({ "device", "s" },
+                      { "characteristic_path", "s"},
+                      { "value", "ay"}),
+                   NULL, notify_device_on_chrc_change) },
     { }
 };
 
