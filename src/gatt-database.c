@@ -1344,7 +1344,14 @@ static void send_notification_to_device(void *data, void *user_data)
 	if (!ccc || !(ccc->value & 0x0003))
 		return;
 
-	device = btd_adapter_find_device(notify->database->adapter,
+	DBG("DEVICE ARGS");
+//    DBG("Valid devices: %s", notify->database->adapter->devices);
+    DBG("Device bdaddr_type: %u", device_state->bdaddr_type);
+    DBG("Characteristic handle %u", notify->handle);
+    DBG("Characteristic ccc handle %u", notify->ccc_handle);
+
+
+    device = btd_adapter_find_device(notify->database->adapter,
 						&device_state->bdaddr,
 						device_state->bdaddr_type);
 	if (!device) {
@@ -1377,7 +1384,9 @@ static void send_notification_to_device(void *data, void *user_data)
 		return;
 	}
 
-	DBG("GATT server sending indication");
+//    DBG("GATT server sending indication to %s", device->att);
+//    DBG("GATT server sending indication to handle %s", notify->handle);
+//    DBG("GATT server sending indication to value %s", notify->value);
 	bt_gatt_server_send_indication(server, notify->handle, notify->value,
 						notify->len, notify->conf,
 						notify->user_data, NULL);
@@ -1756,6 +1765,7 @@ static struct external_chrc *chrc_create(struct gatt_app *app,
 	chrc->pending_writes = queue_new();
 
 	chrc->path = g_strdup(path);
+	DBG("DEBUG: characteristic path at: %s", path);
 	if (!chrc->path)
 		goto fail;
 
@@ -1807,7 +1817,7 @@ static bool match_chrc(const void *a, const void *b)
 {
 	const struct external_chrc *chrc = a;
 	const char *path = b;
-
+    DBG("Comparing characteristic: %s vs target %s", chrc->path, path);
 	return strcmp(chrc->path, path) == 0;
 }
 
@@ -2715,6 +2725,11 @@ static void property_changed_cb(GDBusProxy *proxy, const char *name,
 	len = MIN(BT_ATT_MAX_VALUE_LEN, len);
 	value = len ? value : NULL;
 
+
+    // TODO Bernie
+//    DBG("Props changed invoked with chrc path %u", gatt_db_attribute_get_handle(chrc->path));
+//    DBG("Props changed invoked with chrc value %u", value);
+
 	send_notification_to_devices(chrc->service->app->database,
 				gatt_db_attribute_get_handle(chrc->attrib),
 				value, len,
@@ -2843,8 +2858,31 @@ static DBusMessage *notify_device_on_chrc_change(DBusConnection *conn,
     DBG("Characteristic handle %u", notify.handle);
     DBG("Characteristic ccc handle %u", notify.ccc_handle);
 
+    // The last thing we need is the device state from the btd_database
+    bdaddr_t device_bdaddr;
+    str2ba(client_path, &device_bdaddr);
+
+    // TODO(Bernie): un hard-code the 2
+    struct device_state *device = find_device_state(database, &device_bdaddr, 2);
+
+    for (entry = queue_get_entries(database->device_states); entry; entry = entry->next) {
+        struct device_state *tmp = entry->data;
+        DBG("Device bdaddr: %u", tmp->bdaddr);
+        DBG("Device bdaddr_type: %u", tmp->bdaddr_type);
+
+    }
+
+    if (!device){
+        DBG("Unable to find the associated device for %s", client_path);
+        return btd_error_does_not_exist(msg);
+    }
+
+    DBG("Found the client %s!", client_path);
+    send_notification_to_device(device, &notify);
+    DBG("Notification sent");
+    
     return NULL;
-//    struct device_state *device_state;
+    //    struct device_state *device_state;
 //    // GET the above guy with find_device_state from the database w/ btaddr
 //    struct notify notify;
 //    memset(&notify, 0, sizeof(notify));
@@ -2859,6 +2897,14 @@ static DBusMessage *notify_device_on_chrc_change(DBusConnection *conn,
 //
 //    DBG("Found characteristic path: %s", chrc_path);
 
+//    struct notify {
+//        struct btd_gatt_database *database;
+//        uint16_t handle, ccc_handle;
+//        uint8_t *value;
+//        uint16_t len;
+//        bt_gatt_server_conf_func_t conf;
+//        void *user_data;
+//    };
 //    notify.database = database;
 //    notify.handle = handle;
 //    notify.ccc_handle = ccc_handle;
