@@ -1,6 +1,5 @@
 #!/usr/bin/env sh
 
-# TODO requirements
 sudo apt-get install -y libusb-dev libdbus-1-dev libglib2.0-dev libudev-dev libical-dev libreadline-dev
 
 # Remove old bluez
@@ -10,7 +9,7 @@ sudo make uninstall
 
 # Configure and make
 ./configure
-sudo make -j 4
+sudo make -j
 
 #sudo ./src/bluetoothd -n -P battery -d --experimental -f ./src/main.conf
 sudo make install
