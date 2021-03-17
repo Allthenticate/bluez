@@ -2728,12 +2728,22 @@ static DBusMessage *notify_device_on_chrc_change(DBusConnection *conn,
 
     DBG("Notify device on characteristic change called!");
 
-    DBusMessageIter args;
     struct btd_gatt_database *database = user_data;
+    DBG("Database ID: %u", database->db_id);
+
+    DBusMessageIter args;
     const char *characteristic_path;
     const char *client_path;
+    const char *application_path;
     uint8_t *value = NULL;
     int value_len = 0;
+    struct svc_match_data match_data;
+    const char *sender = dbus_message_get_sender(msg);
+
+    // These are probably removable in the future
+    struct gatt_app *app;
+    struct external_service *service;
+    struct external_chrc *chrc;
 
     DBG("Validating and parsing arguments...");
 
@@ -2744,9 +2754,16 @@ static DBusMessage *notify_device_on_chrc_change(DBusConnection *conn,
     }
 
     // Parse out the args
-    DBG("Parsing out the client path..");
+
+    // Fetch the application that this is running as
+    if (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_OBJECT_PATH) {
+        return btd_error_invalid_args(msg);
+    }
+    dbus_message_iter_get_basic(&args, &application_path);
+
 
     // Fetch the client path
+    dbus_message_iter_next(&args);
     dbus_message_iter_get_basic(&args, &client_path);
     DBG("Got a message to update central: %s", client_path);
 
@@ -2755,6 +2772,7 @@ static DBusMessage *notify_device_on_chrc_change(DBusConnection *conn,
     dbus_message_iter_get_basic(&args, &characteristic_path);
     DBG("Got a message to update characteristic: %s", characteristic_path);
 
+    // Parse the value out
     dbus_message_iter_next(&args);
     if (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_ARRAY) {
         DBG("Value argument is not an array!");
@@ -2763,13 +2781,67 @@ static DBusMessage *notify_device_on_chrc_change(DBusConnection *conn,
 
     DBusMessageIter array;
     dbus_message_iter_recurse(&args, &array);
-    DBG("Recursed!!");
     dbus_message_iter_get_fixed_array(&array, &value, &value_len);
     DBG("Value len is getting updated with %u", value_len);
 
-//    for (int i = 0; i < value_len; i++) {
-//        DBG("Value: %i = %u", i, value[i]);
-//    }
+    // Prepare the notify struct
+    struct notify notify;
+    memset(&notify, 0, sizeof(notify));
+
+    notify.database = database;
+    notify.value = value;
+    notify.len = value_len;
+    notify.conf = conf_cb;
+    notify.user_data = user_data;
+
+    // Find the app that owns the characteristic
+    match_data.path = application_path;
+    match_data.sender = sender;
+
+    const struct queue_entry *entry;
+    for (entry = queue_get_entries(database->apps); entry; entry = entry->next) {
+        struct gatt_app *tmp = entry->data;
+        if (match_app(tmp, &match_data)) {
+            DBG("Found the target app");
+            app = entry->data;
+        }
+    }
+
+    // If not found, return
+    if(!app) {
+        DBG("Unable to find the app required to notify the device");
+        return btd_error_agent_not_available(msg);
+    }
+
+    // Find the service which owns the characteristic
+    for (entry = queue_get_entries(app->services); entry; entry = entry->next) {
+        struct external_service *tmp = entry->data;
+        if (match_service_by_chrc(tmp, characteristic_path)) {
+            DBG("Found the target service");
+            service = entry->data;
+        }
+    }
+
+    // If not found, return
+    if(!service) {
+        DBG("Unable to find the characteristic in any services tied to this app");
+        return btd_error_agent_not_available(msg);
+    }
+
+    // Find the characteristic itself
+    for (entry = queue_get_entries(service->chrcs); entry; entry = entry->next) {
+        struct external_chrc *tmp = entry->data;
+        if (match_chrc(tmp, characteristic_path)) {
+            DBG("Found the target characteristic!!!");
+            chrc = entry->data;
+        }
+    }
+
+    notify.handle = gatt_db_attribute_get_handle(chrc->attrib);
+    notify.ccc_handle = gatt_db_attribute_get_handle(chrc->ccc);
+
+    DBG("Characteristic handle %u", notify.handle);
+    DBG("Characteristic ccc handle %u", notify.ccc_handle);
 
     return NULL;
 //    struct device_state *device_state;
@@ -3696,9 +3768,10 @@ static const GDBusMethodTable manager_methods[] = {
                     GDBUS_ARGS({ "application", "o" }),
                     NULL, ping) },
     {  GDBUS_ASYNC_METHOD("SendNotificationToDevice",
-                   GDBUS_ARGS({ "device", "s" },
-                      { "characteristic_path", "s"},
-                      { "value", "ay"}),
+                   GDBUS_ARGS( {"application", "o" },
+                        { "device", "s" },
+                        { "characteristic_path", "s"},
+                        { "value", "ay"}),
                    NULL, notify_device_on_chrc_change) },
     { }
 };
