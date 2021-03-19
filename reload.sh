@@ -9,11 +9,11 @@ sudo make uninstall
 
 # Configure and make
 ./configure
-sudo make -j
+sudo make -j 2
 
 #sudo ./src/bluetoothd -n -P battery -d --experimental -f ./src/main.conf
 sudo make install
-sudo sed -i -e 's/ExecStart=.*/ExecStart=\/usr\/libexec\/bluetooth\/bluetoothd -C -P battery -d --experimental /' /lib/systemd/system/bluetooth.service
+sudo sed -i -e 's/ExecStart=.*/ExecStart=\/usr\/local\/libexec\/bluetooth\/bluetoothd -C -P battery -d --experimental /' /lib/systemd/system/bluetooth.service
 
 # Get the proper configuration file
 sudo ../../scripts/update_bluez_config.sh src/bluetooth.conf

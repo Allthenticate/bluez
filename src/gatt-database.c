@@ -2738,6 +2738,7 @@ static DBusMessage *notify_device_on_chrc_change(DBusConnection *conn,
     int value_len = 0;
     DBusMessageIter args;
     DBusMessageIter array;
+    DBusMessage *reply;
     bdaddr_t device_bdaddr;
     const char *characteristic_path;
     const char *client_path;
@@ -2746,13 +2747,14 @@ static DBusMessage *notify_device_on_chrc_change(DBusConnection *conn,
     const char *sender = dbus_message_get_sender(msg);
     const struct queue_entry *entry;
 
-    // These are probably removable in the future
+    // These are probably removable in the future but these are the main things we need to populate
     struct gatt_app *app = NULL;
     struct external_service *service = NULL;
     struct external_chrc *chrc = NULL;
     struct notify notify;
     struct device_state *device;
 
+    // TODO(Bernie): Validate the args...
     DBG("Validating and parsing arguments...");
 
     // Validate that we can parse the args
@@ -2794,14 +2796,13 @@ static DBusMessage *notify_device_on_chrc_change(DBusConnection *conn,
         DBG("Value: %i = %u", i, value[i]);
     }
 
-    // Prepare the notify struct
+    // Prepare the notify struct that we need to pass in, see send_notification_to_devices
     memset(&notify, 0, sizeof(notify));
 
     notify.database = database;
     notify.value = value;
     notify.len = value_len;
-    notify.conf = NULL;
-    notify.user_data = user_data;
+    notify.conf = conf_cb;
 
     // Find the app that owns the characteristic
     match_data.path = application_path;
@@ -2864,7 +2865,7 @@ static DBusMessage *notify_device_on_chrc_change(DBusConnection *conn,
     // The last thing we need is the device state from the btd_database
     str2ba(client_path, &device_bdaddr);
 
-    // TODO(Bernie): un hard-code the 2
+    // TODO(Bernie): un hard-code the 2 for the bdaddr_type, unsure how to retrieve
     device = find_device_state(database, &device_bdaddr, 2);
 
     if (!device){
@@ -2875,8 +2876,7 @@ static DBusMessage *notify_device_on_chrc_change(DBusConnection *conn,
     send_notification_to_device(device, &notify);
     DBG("Notification sent to %s", client_path);
 
-//    g_dbus_send_message(btd_get_dbus_connection(), NULL);
-    return NULL;
+    return dbus_message_new_method_return(msg);
 }
 
 static bool database_add_ccc(struct external_service *service,
@@ -3692,7 +3692,7 @@ static DBusMessage *manager_register_app(DBusConnection *conn,
 	if (!app)
 		return btd_error_failed(msg, "Failed to register application");
 
-	DBG("HERE Registering application: %s:%s", sender, path);
+	DBG("Registering application: %s:%s", sender, path);
 
 	app->database = database;
 	queue_push_tail(database->apps, app);
